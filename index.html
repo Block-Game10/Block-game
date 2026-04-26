@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Block Game</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0b1020;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    h1 {
+      margin: 12px 0;
+      font-size: 34px;
+    }
+
+    #hud {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: linear-gradient(to bottom, #101935, #0b1020);
+      border: 3px solid white;
+      border-radius: 14px;
+    }
+
+    #tip {
+      margin-top: 10px;
+      font-size: 15px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <h1>🟦 Block Game</h1>
+  <div id="hud">Scor: 0 | Formă: Cub</div>
+  <canvas id="game" width="900" height="450"></canvas>
+  <div id="tip">Spațiu = sari / urcă • Click = restart</div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const hud = document.getElementById("hud");
+
+    let gameSpeed = 6;
+    let score = 0;
+    let frame = 0;
+    let gameOver = false;
+
+    const player = {
+      x: 120,
+      y: 320,
+      w: 40,
+      h: 40,
+      vy: 0,
+      gravity: 0.8,
+      jump: -13,
+      grounded: true,
+      mode: "cube",
+      rotation: 0
+    };
+
+    let obstacles = [];
+
+    function randomMode() {
+      const modes = ["cube", "ship", "wave"];
+      return modes[Math.floor(Math.random() * modes.length)];
+    }
+
+    function spawnObstacle() {
+      obstacles.push({
+        x: canvas.width + 20,
+        y: 340,
+        w: 30 + Math.random() * 40,
+        h: 30 + Math.random() * 50
+      });
+
+      if (score > 0 && score % 500 === 0) {
+        player.mode = randomMode();
+      }
+    }
+
+    function drawPlayer() {
+      ctx.save();
+      ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
+
+      if (player.mode === "cube") {
+        ctx.rotate(player.rotation);
+        ctx.fillStyle = "cyan";
+        ctx.fillRect(-20, -20, 40, 40);
+      }
+
+      if (player.mode === "ship") {
+        ctx.fillStyle = "lime";
+        ctx.beginPath();
+        ctx.moveTo(-20, 20);
+        ctx.lineTo(20, 0);
+        ctx.lineTo(-20, -20);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if (player.mode === "wave") {
+        ctx.strokeStyle = "yellow";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(-20, 15);
+        ctx.lineTo(0, -15);
+        ctx.lineTo(20, 15);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function updatePlayer() {
+      if (player.mode === "cube") {
+        player.vy += player.gravity;
+        player.y += player.vy;
+
+        if (player.y >= 320) {
+          player.y = 320;
+          player.vy = 0;
+          player.grounded = true;
+        } else {
+          player.grounded = false;
+          player.rotation += 0.15;
+        }
+      }
+
+      if (player.mode === "ship") {
+        if (keys[" "]) player.y -= 7;
+        else player.y += 5;
+      }
+
+      if (player.mode === "wave") {
+        if (keys[" "]) player.y -= 8;
+        else player.y += 8;
+      }
+
+      if (player.y < 0) player.y = 0;
+      if (player.y > canvas.height - player.h) player.y = canvas.height - player.h;
+    }
+
+    function drawObstacles() {
+      ctx.fillStyle = "red";
+      obstacles.forEach(o => {
+        ctx.fillRect(o.x, o.y, o.w, o.h);
+      });
+    }
+
+    function updateObstacles() {
+      obstacles.forEach(o => o.x -= gameSpeed);
+
+      obstacles.forEach(o => {
+        if (
+          player.x < o.x + o.w &&
+          player.x + player.w > o.x &&
+          player.y < o.y + o.h &&
+          player.y + player.h > o.y
+        ) {
+          gameOver = true;
+        }
+      });
+
+      obstacles = obstacles.filter(o => o.x + o.w > 0);
+    }
+
+    function drawGround() {
+      ctx.fillStyle = "#222";
+      ctx.fillRect(0, 380, canvas.width, 70);
+    }
+
+    const keys = {};
+    document.addEventListener("keydown", e => {
+      keys[e.key] = true;
+
+      if (e.key === " " && player.mode === "cube" && player.grounded) {
+        player.vy = player.jump;
+      }
+    });
+
+    document.addEventListener("keyup", e => {
+      keys[e.key] = false;
+    });
+
+    canvas.addEventListener("click", () => {
+      if (gameOver) location.reload();
+    });
+
+    function updateHUD() {
+      let formText = "Cub";
+      if (player.mode === "ship") formText = "Rachetă";
+      if (player.mode === "wave") formText = "Săgeată";
+
+      hud.textContent = `Scor: ${score} | Formă: ${formText}`;
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!gameOver) {
+        frame++;
+        score++;
+        if (frame % 90 === 0) spawnObstacle();
+        if (frame % 600 === 0) gameSpeed += 0.5;
+
+        drawGround();
+        updatePlayer();
+        updateObstacles();
+
+        drawPlayer();
+        drawObstacles();
+        updateHUD();
+
+        requestAnimationFrame(gameLoop);
+      } else {
+        ctx.fillStyle = "white";
+        ctx.font = "50px Arial";
+        ctx.fillText("GAME OVER", 290, 180);
+        ctx.font = "25px Arial";
+        ctx.fillText("Click pentru restart", 320, 240);
+      }
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
